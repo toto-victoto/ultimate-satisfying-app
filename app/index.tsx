@@ -86,18 +86,39 @@ function RippleTap() {
 function ElasticScrub() {
   const position = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
   const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const start = useRef({ x: 0, y: 0 }); const current = useRef({ x: 0, y: 0 }); const lastBand = useRef(0);
-  useEffect(() => { const a = position.x.addListener(({ value }) => { current.current.x = value; }); const b = position.y.addListener(({ value }) => { current.current.y = value; }); return () => { position.x.removeListener(a); position.y.removeListener(b); if (idleTimer.current) clearTimeout(idleTimer.current); }; }, [position]);
+  const start = useRef({ x: 0, y: 0 });
+  const current = useRef({ x: 0, y: 0 });
+  const lastBand = useRef(0);
+  useEffect(() => {
+    const a = position.x.addListener(({ value }) => { current.current.x = value; });
+    const b = position.y.addListener(({ value }) => { current.current.y = value; });
+    return () => { position.x.removeListener(a); position.y.removeListener(b); if (idleTimer.current) clearTimeout(idleTimer.current); };
+  }, [position]);
   const springHome = () => Animated.spring(position, { toValue: { x: 0, y: 0 }, stiffness: 170, damping: 13, mass: 0.85, useNativeDriver: false }).start(({ finished }) => { if (finished) { lastBand.current = 0; softTick(); } });
   const resetLater = () => { if (idleTimer.current) clearTimeout(idleTimer.current); idleTimer.current = setTimeout(springHome, 1000); };
   const elastic = (d: number) => d === 0 ? 0 : Math.sign(d) * 190 * (1 - Math.exp(-Math.abs(d) / 210));
-  const pan = useMemo(() => PanResponder.create({ onStartShouldSetPanResponder: () => true, onMoveShouldSetPanResponder: () => true, onPanResponderGrant: () => { if (idleTimer.current) clearTimeout(idleTimer.current); start.current = { ...current.current }; position.stopAnimation(); }, onPanResponderMove: (_, g) => { const x = elastic(start.current.x + g.dx); const y = elastic(start.current.y + g.dy); position.setValue({ x, y }); const band = Math.floor(Math.hypot(x, y) / 45); if (band !== lastBand.current) { lastBand.current = band; softTick(); } resetLater(); }, onPanResponderRelease: () => { impact(Haptics.ImpactFeedbackStyle.Medium); resetLater(); }, onPanResponderTerminate: resetLater }), []);
+  const pan = useMemo(() => PanResponder.create({
+    onStartShouldSetPanResponder: () => true,
+    onMoveShouldSetPanResponder: () => true,
+    onPanResponderGrant: () => { if (idleTimer.current) clearTimeout(idleTimer.current); start.current = { ...current.current }; position.stopAnimation(); },
+    onPanResponderMove: (_, g) => {
+      const x = elastic(start.current.x + g.dx);
+      const y = elastic(start.current.y + g.dy);
+      position.setValue({ x, y });
+      const band = Math.floor(Math.hypot(x, y) / 45);
+      if (band !== lastBand.current) { lastBand.current = band; softTick(); }
+      resetLater();
+    },
+    onPanResponderRelease: () => { impact(Haptics.ImpactFeedbackStyle.Medium); resetLater(); },
+    onPanResponderTerminate: resetLater,
+  }), []);
   const bg = position.x.interpolate({ inputRange: [-190, 0, 190], outputRange: ['#31184a', '#11141b', '#4c3510'], extrapolate: 'clamp' });
   return <Experience title="STRETCH IT" subtitle="pull it anywhere"><Animated.View style={[styles.fullSurface, { backgroundColor: bg }]} {...pan.panHandlers}><Animated.View pointerEvents="none" style={[styles.elasticBlob, { transform: [{ translateX: position.x }, { translateY: position.y }] }]}><View style={styles.elasticHighlight} /></Animated.View></Animated.View></Experience>;
 }
 
 function PressureGame() {
-  const scale = useRef(new Animated.Value(1)).current; const glow = useRef(new Animated.Value(0)).current;
+  const scale = useRef(new Animated.Value(1)).current;
+  const glow = useRef(new Animated.Value(0)).current;
   const press = () => { impact(Haptics.ImpactFeedbackStyle.Light); Animated.parallel([Animated.spring(scale, { toValue: 1.85, stiffness: 90, damping: 9, useNativeDriver: true }), Animated.timing(glow, { toValue: 1, duration: 420, useNativeDriver: false })]).start(); };
   const release = () => { impact(Haptics.ImpactFeedbackStyle.Heavy); Animated.parallel([Animated.spring(scale, { toValue: 1, stiffness: 260, damping: 12, useNativeDriver: true }), Animated.timing(glow, { toValue: 0, duration: 240, useNativeDriver: false })]).start(); };
   const backgroundColor = glow.interpolate({ inputRange: [0, 1], outputRange: ['#12151c', '#3b123d'] });
@@ -105,17 +126,29 @@ function PressureGame() {
 }
 
 function SquishGame() {
-  const sx = useRef(new Animated.Value(1)).current; const sy = useRef(new Animated.Value(1)).current;
+  const sx = useRef(new Animated.Value(1)).current;
+  const sy = useRef(new Animated.Value(1)).current;
   const squish = () => { softTick(); Animated.parallel([Animated.spring(sx, { toValue: 1.55, stiffness: 350, damping: 13, useNativeDriver: true }), Animated.spring(sy, { toValue: 0.58, stiffness: 350, damping: 13, useNativeDriver: true })]).start(); };
   const bounce = () => { impact(Haptics.ImpactFeedbackStyle.Medium); Animated.parallel([Animated.spring(sx, { toValue: 1, stiffness: 180, damping: 7, useNativeDriver: true }), Animated.spring(sy, { toValue: 1, stiffness: 180, damping: 7, useNativeDriver: true })]).start(); };
   return <Experience title="SQUISH IT" subtitle="press · release · repeat"><Pressable style={[styles.fullSurface, styles.squishSurface]} onPressIn={squish} onPressOut={bounce}><Animated.View style={[styles.squishBlob, { transform: [{ scaleX: sx }, { scaleY: sy }] }]} /></Pressable></Experience>;
 }
 
-function Experience({ title, subtitle, children }: { title: string; subtitle: string; children: React.ReactNode }) { return <View style={styles.experience}><View style={styles.copy}><Text selectable={false} style={styles.title}>{title}</Text><Text selectable={false} style={styles.subtitle}>{subtitle}</Text></View><View style={styles.gameArea}>{children}</View></View>; }
-function MockAd() { return <View style={[styles.experience, styles.ad]}><Text selectable={false} style={styles.adEyebrow}>ADVERTISEMENT SLOT</Text><Text selectable={false} style={styles.adTitle}>7 games played first.</Text><Text selectable={false} style={styles.adCopy}>POC placeholder — real ad SDK comes later.</Text></View>; }
+function Experience({ title, subtitle, children }: { title: string; subtitle: string; children: React.ReactNode }) {
+  return <View style={styles.experience}><View style={styles.copy}><Text selectable={false} style={styles.title}>{title}</Text><Text selectable={false} style={styles.subtitle}>{subtitle}</Text></View><View style={styles.gameArea}>{children}</View></View>;
+}
+
+function MockAd() {
+  return <View style={[styles.experience, styles.ad]}><Text selectable={false} style={styles.adEyebrow}>ADVERTISEMENT SLOT</Text><Text selectable={false} style={styles.adTitle}>7 games played first.</Text><Text selectable={false} style={styles.adCopy}>POC placeholder — real ad SDK comes later.</Text></View>;
+}
 
 function StatsOverlay({ history, onClose }: { history: HistoryEntry[]; onClose: () => void }) {
-  const totals = history.reduce<Record<string, { seconds: number; visits: number }>>((acc, entry) => { const item = acc[entry.label] ?? { seconds: 0, visits: 0 }; item.seconds += entry.seconds; item.visits += 1; acc[entry.label] = item; return acc; }, {});
+  const totals = history.reduce<Record<string, { seconds: number; visits: number }>>((acc, entry) => {
+    const item = acc[entry.label] ?? { seconds: 0, visits: 0 };
+    item.seconds += entry.seconds;
+    item.visits += 1;
+    acc[entry.label] = item;
+    return acc;
+  }, {});
   return <View style={styles.overlay}><View style={styles.statsCard}><View style={styles.statsHeader}><Text style={styles.statsTitle}>LOCAL POC STATS</Text><Pressable onPress={onClose}><Text style={styles.close}>✕</Text></Pressable></View><Text style={styles.statsSubtitle}>History is a secondary view only</Text>{Object.entries(totals).map(([label, data]) => <View key={label} style={styles.statRow}><Text style={styles.statName}>{label}</Text><Text style={styles.statValue}>{data.visits}× · {Math.round(data.seconds)}s</Text></View>)}<Text style={styles.historyTitle}>RECENT</Text>{history.slice(-6).reverse().map((entry, i) => <Text key={`${entry.at}-${i}`} style={styles.historyLine}>{entry.label} · {entry.seconds.toFixed(1)}s</Text>)}</View></View>;
 }
 
@@ -132,6 +165,14 @@ export default function Home() {
   const persist = (nextHistory: HistoryEntry[]) => AsyncStorage.setItem(STORAGE_KEY, JSON.stringify({ history: nextHistory.slice(-40) })).catch(() => undefined);
 
   useEffect(() => {
+    if (Platform.OS !== 'web' || typeof window === 'undefined') return;
+    const previous = window.history.scrollRestoration;
+    window.history.scrollRestoration = 'manual';
+    window.scrollTo(0, 0);
+    return () => { window.history.scrollRestoration = previous; };
+  }, []);
+
+  useEffect(() => {
     AsyncStorage.getItem(STORAGE_KEY)
       .then((raw) => {
         const saved = raw ? JSON.parse(raw) as StoredState : {};
@@ -144,6 +185,22 @@ export default function Home() {
       })
       .finally(() => setReady(true));
   }, []);
+
+  useEffect(() => {
+    if (!ready) return;
+    setCurrentIndex(0);
+    const reset = () => listRef.current?.scrollToOffset({ offset: 0, animated: false });
+    reset();
+    const frame = requestAnimationFrame(() => {
+      reset();
+      requestAnimationFrame(reset);
+    });
+    const timer = setTimeout(reset, 80);
+    return () => {
+      cancelAnimationFrame(frame);
+      clearTimeout(timer);
+    };
+  }, [ready]);
 
   const appendBatchIfNeeded = (targetIndex: number) => {
     if (targetIndex >= items.length - 2) setItems((current) => [...current, ...buildItems(current.length)]);
@@ -193,6 +250,9 @@ export default function Home() {
       windowSize={5}
       showsVerticalScrollIndicator={false}
       getItemLayout={(_, index) => ({ length: SCREEN_HEIGHT, offset: SCREEN_HEIGHT * index, index })}
+      onLayout={() => {
+        if (currentIndex === 0) listRef.current?.scrollToOffset({ offset: 0, animated: false });
+      }}
       style={styles.list}
     />
     <Pressable style={styles.statsButton} onPress={() => setShowStats(true)}><Text selectable={false} style={styles.statsButtonText}>HISTORY</Text></Pressable>
