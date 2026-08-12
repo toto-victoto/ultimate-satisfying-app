@@ -1,0 +1,19 @@
+{
+  "expo": {
+    "name": "The Ultimate Satisfying App",
+    "slug": "ultimate-satisfying-app",
+    "scheme": "ultimate-satisfying",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "plugins": ["expo-router"],
+    "web": {
+      "output": "static",
+      "bundler": "metro"
+    },
+    "experiments": {
+      "typedRoutes": true,
+      "baseUrl": "/ultimate-satisfying-app"
+    }
+  }
+}
