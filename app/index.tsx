@@ -129,37 +129,44 @@ export default function Home() {
   const navStartIndex = useRef(0);
   const enteredAt = useRef(Date.now());
 
+  const persist = (nextHistory: HistoryEntry[]) => AsyncStorage.setItem(STORAGE_KEY, JSON.stringify({ history: nextHistory.slice(-40) })).catch(() => undefined);
+
   useEffect(() => {
     AsyncStorage.getItem(STORAGE_KEY)
       .then((raw) => {
-        if (!raw) return;
-        const saved = JSON.parse(raw) as StoredState;
-        if (saved.history) setHistory(saved.history);
+        const saved = raw ? JSON.parse(raw) as StoredState : {};
+        const now = Date.now();
+        const sessionStart: HistoryEntry = { id: `session-${now}-game-0`, label: GAME_LABELS[0], seconds: 0, at: now };
+        const nextHistory = [...(saved.history ?? []), sessionStart].slice(-40);
+        setHistory(nextHistory);
+        enteredAt.current = now;
+        return persist(nextHistory);
       })
       .finally(() => setReady(true));
   }, []);
 
-  const persist = (nextHistory: HistoryEntry[]) => AsyncStorage.setItem(STORAGE_KEY, JSON.stringify({ history: nextHistory.slice(-40) })).catch(() => undefined);
-
   const appendBatchIfNeeded = (targetIndex: number) => {
-    if (targetIndex >= items.length - 2) {
-      setItems((current) => [...current, ...buildItems(current.length)]);
-    }
+    if (targetIndex >= items.length - 2) setItems((current) => [...current, ...buildItems(current.length)]);
   };
 
   const goNext = () => {
     const now = Date.now();
     const current = items[currentIndex];
-    const nextHistory = current?.kind === 'game'
-      ? [...history, { id: current.id, label: GAME_LABELS[current.game], seconds: Math.max(0.1, (now - enteredAt.current) / 1000), at: now }].slice(-40)
-      : history;
+    let nextHistory = history;
+    if (current?.kind === 'game') {
+      const elapsed = Math.max(0.1, (now - enteredAt.current) / 1000);
+      const last = history[history.length - 1];
+      if (currentIndex === 0 && last?.id.startsWith('session-') && last.label === GAME_LABELS[current.game]) {
+        nextHistory = [...history.slice(0, -1), { ...last, seconds: elapsed }];
+      } else {
+        nextHistory = [...history, { id: current.id, label: GAME_LABELS[current.game], seconds: elapsed, at: now }].slice(-40);
+      }
+    }
     const next = currentIndex + 1;
-
     appendBatchIfNeeded(next);
     setHistory(nextHistory);
     setCurrentIndex(next);
     enteredAt.current = now;
-
     listRef.current?.scrollToOffset({ offset: next * SCREEN_HEIGHT, animated: true });
     impact(Haptics.ImpactFeedbackStyle.Medium);
     persist(nextHistory);
@@ -169,9 +176,7 @@ export default function Home() {
     onStartShouldSetPanResponder: () => true,
     onMoveShouldSetPanResponder: () => true,
     onPanResponderGrant: () => { navStartIndex.current = currentIndex; },
-    onPanResponderRelease: (_, g) => {
-      if (g.dy < -42 && currentIndex === navStartIndex.current) goNext();
-    },
+    onPanResponderRelease: (_, g) => { if (g.dy < -42 && currentIndex === navStartIndex.current) goNext(); },
   }), [currentIndex, items.length, history]);
 
   if (!ready) return <View style={styles.loading} />;
@@ -199,20 +204,24 @@ export default function Home() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#08090c', ...(Platform.OS === 'web' ? ({ userSelect: 'none', WebkitUserSelect: 'none' } as object) : {}) },
-  list: { flex: 1, backgroundColor: '#08090c' }, loading: { flex: 1, backgroundColor: '#08090c' },
+  list: { flex: 1, backgroundColor: '#08090c' },
+  loading: { flex: 1, backgroundColor: '#08090c' },
   bottomNavZone: { position: 'absolute', left: 0, right: 0, bottom: 0, zIndex: 20, backgroundColor: 'transparent', alignItems: 'center', justifyContent: 'center', paddingTop: 12 },
   navSeparator: { position: 'absolute', top: 0, left: 0, right: 0, height: 2, backgroundColor: '#343840' },
   navPill: { width: 42, height: 4, borderRadius: 2, backgroundColor: '#555b66', marginBottom: 10 },
   navHint: { color: '#868c98', fontSize: 10, fontWeight: '800', letterSpacing: 1.4 },
-  statsButton: { position: 'absolute', top: Platform.OS === 'web' ? 8 : 42, left: 10, zIndex: 25, paddingHorizontal: 9, paddingVertical: 5, borderRadius: 8, backgroundColor: 'rgba(255,255,255,0.08)' },
-  statsButtonText: { color: '#8b8e99', fontSize: 10, fontWeight: '800', letterSpacing: 0.7 },
   commitBadge: { position: 'absolute', top: Platform.OS === 'web' ? 8 : 42, right: 10, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, backgroundColor: 'rgba(255,255,255,0.08)', zIndex: 30 },
   commitText: { color: '#8b8e99', fontSize: 10, fontWeight: '700', letterSpacing: 0.5 },
+  statsButton: { position: 'absolute', top: Platform.OS === 'web' ? 8 : 42, left: 10, zIndex: 30, paddingHorizontal: 9, paddingVertical: 5, borderRadius: 8, backgroundColor: 'rgba(255,255,255,0.08)' },
+  statsButtonText: { color: '#8b8e99', fontSize: 10, fontWeight: '800', letterSpacing: 0.7 },
   experience: { height: SCREEN_HEIGHT, backgroundColor: '#08090c', alignItems: 'center', paddingHorizontal: 24, paddingTop: Platform.OS === 'web' ? 40 : 72, paddingBottom: NAV_ZONE_HEIGHT + 12 },
-  copy: { alignItems: 'center', gap: 6, zIndex: 2 }, title: { color: '#f7f7f7', fontSize: 34, fontWeight: '900', letterSpacing: 1.5 }, subtitle: { color: '#8b8e99', fontSize: 14, letterSpacing: 0.5 },
-  gameArea: { flex: 1, width: '100%', alignItems: 'stretch', justifyContent: 'center', overflow: 'hidden' },
-  bubbleGrid: { width: 330, maxWidth: '100%', flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', alignItems: 'center', alignSelf: 'center', gap: 10 },
-  bubble: { backgroundColor: '#8fd3ff', borderWidth: 3, borderColor: '#c9ecff', shadowColor: '#8fd3ff', shadowOpacity: 0.6, shadowRadius: 14 }, bubblePopped: { opacity: 0.08, transform: [{ scale: 0.72 }] },
+  copy: { alignItems: 'center', gap: 6, zIndex: 2 },
+  title: { color: '#f7f7f7', fontSize: 34, fontWeight: '900', letterSpacing: 1.5 },
+  subtitle: { color: '#8b8e99', fontSize: 14, letterSpacing: 0.5 },
+  gameArea: { flex: 1, width: '100%', alignItems: 'stretch', justifyContent: 'stretch', overflow: 'hidden' },
+  bubbleGrid: { width: 330, maxWidth: '100%', flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', alignItems: 'center', alignSelf: 'center', marginTop: 'auto', marginBottom: 'auto', gap: 10 },
+  bubble: { backgroundColor: '#8fd3ff', borderWidth: 3, borderColor: '#c9ecff', shadowColor: '#8fd3ff', shadowOpacity: 0.6, shadowRadius: 14 },
+  bubblePopped: { opacity: 0.08, transform: [{ scale: 0.72 }] },
   ripplePad: { flex: 1, width: '100%', borderRadius: 24, backgroundColor: '#101724', overflow: 'hidden', borderWidth: 1, borderColor: '#263349', marginTop: 16, marginBottom: 16 },
   waterGlow: { position: 'absolute', left: '20%', top: '15%', width: '60%', height: '65%', borderRadius: 180, backgroundColor: '#223c5a', opacity: 0.38 },
   waveRing: { position: 'absolute', width: 84, height: 84, borderRadius: 42, borderWidth: 3, borderColor: '#b8dfff', shadowColor: '#93cbff', shadowOpacity: 0.75, shadowRadius: 8 },
@@ -220,11 +229,22 @@ const styles = StyleSheet.create({
   elasticBlob: { width: 118, height: 118, borderRadius: 59, backgroundColor: '#ffd66b', borderWidth: 7, borderColor: '#fff0ad', shadowColor: '#ffd66b', shadowOpacity: 0.65, shadowRadius: 22 },
   elasticHighlight: { position: 'absolute', width: 30, height: 18, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.55)', top: 18, left: 22, transform: [{ rotate: '-22deg' }] },
   centerPress: { width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center' },
-  pressOrb: { width: 94, height: 94, borderRadius: 47, backgroundColor: '#ff77df', shadowColor: '#ff77df', shadowOpacity: 0.65, shadowRadius: 24 },
-  squishSurface: { backgroundColor: '#10151b' }, squishBlob: { width: 150, height: 150, borderRadius: 75, backgroundColor: '#73e2a7', borderWidth: 7, borderColor: '#b8ffd6', shadowColor: '#73e2a7', shadowOpacity: 0.6, shadowRadius: 22 },
-  ad: { justifyContent: 'center', gap: 18, backgroundColor: '#11131a' }, adEyebrow: { color: '#74798b', fontSize: 11, letterSpacing: 2 }, adTitle: { color: '#f5f5f5', fontSize: 30, fontWeight: '800', textAlign: 'center' }, adCopy: { color: '#8b8e99', fontSize: 14, textAlign: 'center' },
-  overlay: { ...StyleSheet.absoluteFillObject, zIndex: 100, backgroundColor: 'rgba(0,0,0,0.76)', alignItems: 'center', justifyContent: 'center', padding: 22 },
-  statsCard: { width: '100%', maxWidth: 430, maxHeight: '82%', borderRadius: 22, backgroundColor: '#151820', padding: 20, borderWidth: 1, borderColor: '#2a2f3a' },
-  statsHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, statsTitle: { color: '#fff', fontSize: 18, fontWeight: '900' }, close: { color: '#aaa', fontSize: 20, padding: 6 }, statsSubtitle: { color: '#727887', fontSize: 11, marginTop: 3, marginBottom: 18 },
-  statRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#252a34' }, statName: { color: '#dfe3eb', fontSize: 12, fontWeight: '700' }, statValue: { color: '#9198a8', fontSize: 12 }, historyTitle: { color: '#737a8b', fontSize: 10, fontWeight: '800', letterSpacing: 1.2, marginTop: 18, marginBottom: 8 }, historyLine: { color: '#c4c9d3', fontSize: 12, paddingVertical: 3 },
+  pressOrb: { width: 94, height: 94, borderRadius: 47, backgroundColor: '#ef77ff', borderWidth: 7, borderColor: '#ffd6ff', shadowColor: '#ef77ff', shadowOpacity: 0.8, shadowRadius: 22 },
+  squishSurface: { backgroundColor: '#12201b' },
+  squishBlob: { width: 140, height: 140, borderRadius: 70, backgroundColor: '#70f0ac', borderWidth: 8, borderColor: '#c7ffdf', shadowColor: '#70f0ac', shadowOpacity: 0.7, shadowRadius: 20 },
+  ad: { justifyContent: 'center', gap: 18, backgroundColor: '#11131a' },
+  adEyebrow: { color: '#74798b', fontSize: 11, letterSpacing: 2 },
+  adTitle: { color: '#f5f5f5', fontSize: 30, fontWeight: '800', textAlign: 'center' },
+  adCopy: { color: '#8b8e99', fontSize: 14, textAlign: 'center' },
+  overlay: { ...StyleSheet.absoluteFillObject, zIndex: 100, backgroundColor: 'rgba(0,0,0,0.72)', alignItems: 'center', justifyContent: 'center', padding: 22 },
+  statsCard: { width: '100%', maxWidth: 430, maxHeight: '82%', borderRadius: 24, backgroundColor: '#151820', padding: 22, borderWidth: 1, borderColor: '#2b303b' },
+  statsHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  statsTitle: { color: '#f5f5f5', fontWeight: '900', fontSize: 18, letterSpacing: 1 },
+  close: { color: '#9da3b0', fontSize: 22 },
+  statsSubtitle: { color: '#777e8d', fontSize: 12, marginTop: 5, marginBottom: 18 },
+  statRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#252934' },
+  statName: { color: '#daddE5', fontWeight: '700' },
+  statValue: { color: '#9299a8' },
+  historyTitle: { color: '#777e8d', fontSize: 11, letterSpacing: 1.5, marginTop: 20, marginBottom: 9 },
+  historyLine: { color: '#c8ccd5', paddingVertical: 4 },
 });
