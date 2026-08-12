@@ -32,8 +32,12 @@ function buildItems(start: number, count = 24): FeedItem[] {
   });
 }
 
-function popHaptic() {
-  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => undefined);
+function impact(style: Haptics.ImpactFeedbackStyle) {
+  Haptics.impactAsync(style).catch(() => undefined);
+}
+
+function softTick() {
+  Haptics.selectionAsync().catch(() => undefined);
 }
 
 function BubblePop() {
@@ -46,7 +50,7 @@ function BubblePop() {
 
   const pop = (id: string) => {
     setPopped((p) => ({ ...p, [id]: true }));
-    popHaptic();
+    impact(Haptics.ImpactFeedbackStyle.Light);
   };
 
   useEffect(() => {
@@ -54,6 +58,7 @@ function BubblePop() {
       const timer = setTimeout(() => {
         setPopped({});
         setSeed((s) => s + 1);
+        impact(Haptics.ImpactFeedbackStyle.Medium);
       }, 180);
       return () => clearTimeout(timer);
     }
@@ -114,7 +119,7 @@ function RippleTap() {
 
   const addWave = (x: number, y: number) => {
     setWaves((current) => [...current.slice(-7), { id: ++id.current, x, y }]);
-    popHaptic();
+    softTick();
   };
 
   const removeWave = (waveId: number) => {
@@ -142,6 +147,7 @@ function ElasticScrub() {
   const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const startX = useRef(0);
   const currentX = useRef(0);
+  const lastHapticBand = useRef(0);
 
   useEffect(() => {
     const listener = x.addListener(({ value }) => { currentX.current = value; });
@@ -158,7 +164,12 @@ function ElasticScrub() {
       damping: 13,
       mass: 0.85,
       useNativeDriver: false,
-    }).start();
+    }).start(({ finished }) => {
+      if (finished) {
+        lastHapticBand.current = 0;
+        softTick();
+      }
+    });
   };
 
   const scheduleReset = () => {
@@ -178,13 +189,20 @@ function ElasticScrub() {
       if (idleTimer.current) clearTimeout(idleTimer.current);
       startX.current = currentX.current;
       x.stopAnimation();
+      lastHapticBand.current = Math.floor(Math.abs(currentX.current) / 45);
     },
     onPanResponderMove: (_, gesture) => {
-      x.setValue(elastic(startX.current + gesture.dx));
+      const next = elastic(startX.current + gesture.dx);
+      x.setValue(next);
+      const band = Math.floor(Math.abs(next) / 45);
+      if (band !== lastHapticBand.current) {
+        lastHapticBand.current = band;
+        softTick();
+      }
       scheduleReset();
     },
     onPanResponderRelease: () => {
-      popHaptic();
+      impact(Haptics.ImpactFeedbackStyle.Medium);
       scheduleReset();
     },
     onPanResponderTerminate: scheduleReset,
@@ -262,6 +280,7 @@ export default function Home() {
     if (next >= items.length - 6) setItems((current) => [...current, ...buildItems(current.length)]);
     setCurrentIndex(next);
     listRef.current?.scrollToIndex({ index: next, animated: true });
+    impact(Haptics.ImpactFeedbackStyle.Medium);
     AsyncStorage.setItem(STORAGE_KEY, JSON.stringify({ index: next })).catch(() => undefined);
   };
 
