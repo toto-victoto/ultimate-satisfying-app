@@ -64,7 +64,7 @@ function BubblePop() {
         {bubbles.map((bubble) => (
           <Pressable
             key={bubble.id}
-            onPress={() => pop(bubble.id)}
+            onPressIn={() => pop(bubble.id)}
             style={[
               styles.bubble,
               { width: bubble.size, height: bubble.size, borderRadius: bubble.size / 2 },
@@ -81,34 +81,42 @@ function RippleTap() {
   const [rings, setRings] = useState<Array<{ id: number; x: number; y: number }>>([]);
   const id = useRef(0);
 
+  const addRing = (x: number, y: number) => {
+    const next = { id: ++id.current, x, y };
+    setRings((r) => [...r.slice(-11), next]);
+    popHaptic();
+  };
+
   return (
-    <Experience title="MAKE WAVES" subtitle="every touch matters">
+    <Experience title="MAKE WAVES" subtitle="touch anywhere">
       <Pressable
         style={styles.ripplePad}
-        onPress={(event) => {
+        onPressIn={(event) => {
           const { locationX, locationY } = event.nativeEvent;
-          const next = { id: ++id.current, x: locationX, y: locationY };
-          setRings((r) => [...r.slice(-16), next]);
-          popHaptic();
+          addRing(locationX, locationY);
         }}
       >
-        {rings.map((ring, index) => (
-          <View
-            key={ring.id}
-            pointerEvents="none"
-            style={[
-              styles.ring,
-              {
-                left: ring.x - 38 - index * 2,
-                top: ring.y - 38 - index * 2,
-                width: 76 + index * 4,
-                height: 76 + index * 4,
-                borderRadius: 80,
-                opacity: Math.max(0.15, 1 - index / 18),
-              },
-            ]}
-          />
-        ))}
+        {rings.map((ring, index) => {
+          const age = rings.length - 1 - index;
+          const size = 70 + age * 16;
+          return (
+            <View
+              key={ring.id}
+              pointerEvents="none"
+              style={[
+                styles.ring,
+                {
+                  left: ring.x - size / 2,
+                  top: ring.y - size / 2,
+                  width: size,
+                  height: size,
+                  borderRadius: size / 2,
+                  opacity: Math.max(0.12, 0.82 - age * 0.06),
+                },
+              ]}
+            />
+          );
+        })}
       </Pressable>
     </Experience>
   );
@@ -116,27 +124,39 @@ function RippleTap() {
 
 function HorizontalScrub() {
   const [x, setX] = useState(0);
-  const lastX = useRef(0);
+  const xRef = useRef(0);
+  const startX = useRef(0);
+
+  const updateX = (next: number) => {
+    const clamped = Math.max(-120, Math.min(120, next));
+    xRef.current = clamped;
+    setX(clamped);
+  };
+
   const pan = useMemo(
     () =>
       PanResponder.create({
         onMoveShouldSetPanResponder: (_, gesture) =>
-          Math.abs(gesture.dx) > 8 && Math.abs(gesture.dx) > Math.abs(gesture.dy) * 1.4,
+          Math.abs(gesture.dx) > 4 && Math.abs(gesture.dx) > Math.abs(gesture.dy) * 1.2,
+        onMoveShouldSetPanResponderCapture: (_, gesture) =>
+          Math.abs(gesture.dx) > 6 && Math.abs(gesture.dx) > Math.abs(gesture.dy) * 1.35,
         onPanResponderGrant: () => {
-          lastX.current = x;
+          startX.current = xRef.current;
         },
         onPanResponderMove: (_, gesture) => {
-          setX(Math.max(-120, Math.min(120, lastX.current + gesture.dx)));
+          updateX(startX.current + gesture.dx);
         },
         onPanResponderRelease: () => popHaptic(),
+        onPanResponderTerminate: () => undefined,
       }),
-    [x],
+    [],
   );
 
   return (
-    <Experience title="SCRUB IT" subtitle="horizontal drag • vertical swipe stays navigation">
+    <Experience title="SCRUB IT" subtitle="drag sideways">
       <View style={styles.scrubTrack} {...pan.panHandlers}>
         <View style={[styles.scrubGlow, { transform: [{ translateX: x }] }]} />
+        <View style={[styles.scrubTrail, { width: Math.abs(x) + 46, left: x < 0 ? 165 + x : 165 }]} />
         <View style={[styles.scrubHandle, { transform: [{ translateX: x }] }]} />
       </View>
     </Experience>
@@ -147,11 +167,11 @@ function Experience({ title, subtitle, children }: { title: string; subtitle: st
   return (
     <View style={styles.experience}>
       <View style={styles.copy}>
-        <Text style={styles.title}>{title}</Text>
-        <Text style={styles.subtitle}>{subtitle}</Text>
+        <Text selectable={false} style={styles.title}>{title}</Text>
+        <Text selectable={false} style={styles.subtitle}>{subtitle}</Text>
       </View>
       <View style={styles.gameArea}>{children}</View>
-      <Text style={styles.swipeHint}>swipe up for the next feeling ↑</Text>
+      <Text selectable={false} style={styles.swipeHint}>swipe up for the next feeling ↑</Text>
     </View>
   );
 }
@@ -159,10 +179,10 @@ function Experience({ title, subtitle, children }: { title: string; subtitle: st
 function MockAd() {
   return (
     <View style={[styles.experience, styles.ad]}>
-      <Text style={styles.adEyebrow}>ADVERTISEMENT SLOT</Text>
-      <Text style={styles.adTitle}>Your future ad goes here.</Text>
-      <Text style={styles.adCopy}>Same feed mechanics, no ad SDK yet.</Text>
-      <Text style={styles.swipeHint}>swipe up to continue ↑</Text>
+      <Text selectable={false} style={styles.adEyebrow}>ADVERTISEMENT SLOT</Text>
+      <Text selectable={false} style={styles.adTitle}>Your future ad goes here.</Text>
+      <Text selectable={false} style={styles.adCopy}>Same feed mechanics, no ad SDK yet.</Text>
+      <Text selectable={false} style={styles.swipeHint}>swipe up to continue ↑</Text>
     </View>
   );
 }
@@ -195,33 +215,42 @@ export default function Home() {
   if (!ready) return <View style={styles.loading} />;
 
   return (
-    <FlatList
-      ref={listRef}
-      data={items}
-      keyExtractor={(item) => item.id}
-      renderItem={({ item }) => {
-        if (item.kind === 'ad') return <MockAd />;
-        if (item.game === 0) return <BubblePop />;
-        if (item.game === 1) return <RippleTap />;
-        return <HorizontalScrub />;
-      }}
-      pagingEnabled
-      snapToInterval={SCREEN_HEIGHT}
-      decelerationRate="fast"
-      showsVerticalScrollIndicator={false}
-      getItemLayout={(_, index) => ({ length: SCREEN_HEIGHT, offset: SCREEN_HEIGHT * index, index })}
-      onEndReached={() => setItems((current) => [...current, ...buildItems(current.length)])}
-      onEndReachedThreshold={0.6}
-      onMomentumScrollEnd={(event) => {
-        const index = Math.round(event.nativeEvent.contentOffset.y / SCREEN_HEIGHT);
-        AsyncStorage.setItem(STORAGE_KEY, JSON.stringify({ index })).catch(() => undefined);
-      }}
-      style={styles.list}
-    />
+    <View style={styles.root}>
+      <FlatList
+        ref={listRef}
+        data={items}
+        keyExtractor={(item) => item.id}
+        renderItem={({ item }) => {
+          if (item.kind === 'ad') return <MockAd />;
+          if (item.game === 0) return <BubblePop />;
+          if (item.game === 1) return <RippleTap />;
+          return <HorizontalScrub />;
+        }}
+        pagingEnabled
+        disableIntervalMomentum
+        snapToInterval={SCREEN_HEIGHT}
+        snapToAlignment="start"
+        decelerationRate="fast"
+        showsVerticalScrollIndicator={false}
+        getItemLayout={(_, index) => ({ length: SCREEN_HEIGHT, offset: SCREEN_HEIGHT * index, index })}
+        onEndReached={() => setItems((current) => [...current, ...buildItems(current.length)])}
+        onEndReachedThreshold={0.6}
+        onMomentumScrollEnd={(event) => {
+          const index = Math.round(event.nativeEvent.contentOffset.y / SCREEN_HEIGHT);
+          AsyncStorage.setItem(STORAGE_KEY, JSON.stringify({ index })).catch(() => undefined);
+        }}
+        style={styles.list}
+      />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+    backgroundColor: '#08090c',
+    ...(Platform.OS === 'web' ? ({ userSelect: 'none', WebkitUserSelect: 'none' } as object) : {}),
+  },
   list: { flex: 1, backgroundColor: '#08090c' },
   loading: { flex: 1, backgroundColor: '#08090c' },
   experience: {
@@ -266,7 +295,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#252b3c',
   },
-  ring: { position: 'absolute', borderWidth: 5, borderColor: '#b4a7ff' },
+  ring: { position: 'absolute', borderWidth: 4, borderColor: '#b4a7ff' },
   scrubTrack: {
     width: 330,
     maxWidth: '100%',
@@ -284,6 +313,14 @@ const styles = StyleSheet.create({
     borderRadius: 90,
     backgroundColor: '#ffd66b',
     opacity: 0.18,
+  },
+  scrubTrail: {
+    position: 'absolute',
+    height: 14,
+    top: 68,
+    borderRadius: 8,
+    backgroundColor: '#ffd66b',
+    opacity: 0.4,
   },
   scrubHandle: {
     width: 86,
