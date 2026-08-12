@@ -89,13 +89,13 @@ function AnimatedWave({ wave, onDone }: { wave: Wave; onDone: (id: number) => vo
   useEffect(() => {
     Animated.timing(progress, {
       toValue: 1,
-      duration: 950,
+      duration: 1000,
       useNativeDriver: true,
     }).start(() => onDone(wave.id));
   }, [onDone, progress, wave.id]);
 
-  const scale = progress.interpolate({ inputRange: [0, 1], outputRange: [0.12, 3.8] });
-  const opacity = progress.interpolate({ inputRange: [0, 0.22, 1], outputRange: [0.95, 0.7, 0] });
+  const scale = progress.interpolate({ inputRange: [0, 1], outputRange: [0.08, 4.2] });
+  const opacity = progress.interpolate({ inputRange: [0, 0.18, 1], outputRange: [0.95, 0.76, 0] });
 
   return (
     <Animated.View
@@ -118,7 +118,7 @@ function RippleTap() {
   const id = useRef(0);
 
   const addWave = (x: number, y: number) => {
-    setWaves((current) => [...current.slice(-7), { id: ++id.current, x, y }]);
+    setWaves((current) => [...current, { id: ++id.current, x, y }]);
     softTick();
   };
 
@@ -127,7 +127,7 @@ function RippleTap() {
   };
 
   return (
-    <Experience title="MAKE WAVES" subtitle="touch the surface">
+    <Experience title="MAKE WAVES" subtitle="every touch creates a new ripple">
       <Pressable
         style={styles.ripplePad}
         onPressIn={(event) => {
@@ -143,23 +143,25 @@ function RippleTap() {
 }
 
 function ElasticScrub() {
-  const x = useRef(new Animated.Value(0)).current;
+  const position = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
   const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const startX = useRef(0);
-  const currentX = useRef(0);
+  const start = useRef({ x: 0, y: 0 });
+  const current = useRef({ x: 0, y: 0 });
   const lastHapticBand = useRef(0);
 
   useEffect(() => {
-    const listener = x.addListener(({ value }) => { currentX.current = value; });
+    const xListener = position.x.addListener(({ value }) => { current.current.x = value; });
+    const yListener = position.y.addListener(({ value }) => { current.current.y = value; });
     return () => {
-      x.removeListener(listener);
+      position.x.removeListener(xListener);
+      position.y.removeListener(yListener);
       if (idleTimer.current) clearTimeout(idleTimer.current);
     };
-  }, [x]);
+  }, [position]);
 
   const springHome = () => {
-    Animated.spring(x, {
-      toValue: 0,
+    Animated.spring(position, {
+      toValue: { x: 0, y: 0 },
       stiffness: 170,
       damping: 13,
       mass: 0.85,
@@ -178,6 +180,7 @@ function ElasticScrub() {
   };
 
   const elastic = (distance: number) => {
+    if (distance === 0) return 0;
     const sign = distance < 0 ? -1 : 1;
     return sign * 190 * (1 - Math.exp(-Math.abs(distance) / 210));
   };
@@ -187,14 +190,15 @@ function ElasticScrub() {
     onMoveShouldSetPanResponder: () => true,
     onPanResponderGrant: () => {
       if (idleTimer.current) clearTimeout(idleTimer.current);
-      startX.current = currentX.current;
-      x.stopAnimation();
-      lastHapticBand.current = Math.floor(Math.abs(currentX.current) / 45);
+      start.current = { ...current.current };
+      position.stopAnimation();
+      lastHapticBand.current = Math.floor(Math.hypot(current.current.x, current.current.y) / 45);
     },
     onPanResponderMove: (_, gesture) => {
-      const next = elastic(startX.current + gesture.dx);
-      x.setValue(next);
-      const band = Math.floor(Math.abs(next) / 45);
+      const nextX = elastic(start.current.x + gesture.dx);
+      const nextY = elastic(start.current.y + gesture.dy);
+      position.setValue({ x: nextX, y: nextY });
+      const band = Math.floor(Math.hypot(nextX, nextY) / 45);
       if (band !== lastHapticBand.current) {
         lastHapticBand.current = band;
         softTick();
@@ -208,19 +212,34 @@ function ElasticScrub() {
     onPanResponderTerminate: scheduleReset,
   }), []);
 
-  const backgroundColor = x.interpolate({
+  const backgroundColor = position.x.interpolate({
     inputRange: [-190, 0, 190],
     outputRange: ['#31184a', '#11141b', '#4c3510'],
     extrapolate: 'clamp',
   });
-  const scaleX = x.interpolate({ inputRange: [-190, 0, 190], outputRange: [1.28, 1, 1.28], extrapolate: 'clamp' });
-  const rotate = x.interpolate({ inputRange: [-190, 0, 190], outputRange: ['-13deg', '0deg', '13deg'], extrapolate: 'clamp' });
+  const scaleX = position.x.interpolate({ inputRange: [-190, 0, 190], outputRange: [1.22, 1, 1.22], extrapolate: 'clamp' });
+  const scaleY = position.y.interpolate({ inputRange: [-190, 0, 190], outputRange: [1.22, 1, 1.22], extrapolate: 'clamp' });
+  const rotate = position.x.interpolate({ inputRange: [-190, 0, 190], outputRange: ['-12deg', '0deg', '12deg'], extrapolate: 'clamp' });
 
   return (
-    <Experience title="STRETCH IT" subtitle="pull, hold, let it breathe">
+    <Experience title="STRETCH IT" subtitle="pull it anywhere">
       <Animated.View style={[styles.scrubSurface, { backgroundColor }]} {...pan.panHandlers}>
-        <View pointerEvents="none" style={styles.scrubCenterLine} />
-        <Animated.View pointerEvents="none" style={[styles.elasticBlob, { transform: [{ translateX: x }, { scaleX }, { rotate }] }]}>
+        <View pointerEvents="none" style={styles.scrubCenterCross} />
+        <Animated.View
+          pointerEvents="none"
+          style={[
+            styles.elasticBlob,
+            {
+              transform: [
+                { translateX: position.x },
+                { translateY: position.y },
+                { scaleX },
+                { scaleY },
+                { rotate },
+              ],
+            },
+          ]}
+        >
           <View style={styles.elasticHighlight} />
         </Animated.View>
       </Animated.View>
@@ -333,7 +352,7 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     zIndex: 20,
-    backgroundColor: '#15171c',
+    backgroundColor: 'transparent',
     alignItems: 'center',
     justifyContent: 'center',
     paddingTop: 12,
@@ -395,7 +414,12 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     borderRadius: 34,
   },
-  scrubCenterLine: { position: 'absolute', width: 2, height: '68%', backgroundColor: 'rgba(255,255,255,0.09)' },
+  scrubCenterCross: {
+    position: 'absolute',
+    width: 2,
+    height: '68%',
+    backgroundColor: 'rgba(255,255,255,0.09)',
+  },
   elasticBlob: { width: 118, height: 118, borderRadius: 59, backgroundColor: '#ffd66b', borderWidth: 7, borderColor: '#fff0ad', shadowColor: '#ffd66b', shadowOpacity: 0.65, shadowRadius: 22 },
   elasticHighlight: { position: 'absolute', width: 30, height: 18, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.55)', top: 18, left: 22, transform: [{ rotate: '-22deg' }] },
   ad: { justifyContent: 'center', gap: 18, backgroundColor: '#11131a' },
