@@ -17,6 +17,7 @@ type FeedItem =
   | { id: string; kind: 'ad' };
 
 const STORAGE_KEY = 'ultimate-satisfying-state-v1';
+const COMMIT_SHA = process.env.EXPO_PUBLIC_COMMIT_SHA?.slice(0, 7) ?? 'local';
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 function buildItems(start: number, count = 24): FeedItem[] {
@@ -241,6 +242,9 @@ export default function Home() {
         }}
         style={styles.list}
       />
+      <View pointerEvents="none" style={styles.commitBadge}>
+        <Text selectable={false} style={styles.commitText}>POC {COMMIT_SHA}</Text>
+      </View>
     </View>
   );
 }
@@ -253,6 +257,16 @@ const styles = StyleSheet.create({
   },
   list: { flex: 1, backgroundColor: '#08090c' },
   loading: { flex: 1, backgroundColor: '#08090c' },
+  commitBadge: {
+    position: 'absolute',
+    top: Platform.OS === 'web' ? 8 : 42,
+    right: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+  },
+  commitText: { color: '#8b8e99', fontSize: 10, fontWeight: '700', letterSpacing: 0.5 },
   experience: {
     height: SCREEN_HEIGHT,
     backgroundColor: '#08090c',
