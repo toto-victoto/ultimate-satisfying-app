@@ -87,15 +87,19 @@ function AnimatedWave({ wave, onDone }: { wave: Wave; onDone: (id: number) => vo
   const progress = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    Animated.timing(progress, {
+    const animation = Animated.timing(progress, {
       toValue: 1,
-      duration: 1000,
+      duration: 1100,
       useNativeDriver: true,
-    }).start(() => onDone(wave.id));
+    });
+    animation.start(({ finished }) => {
+      if (finished) onDone(wave.id);
+    });
+    return () => animation.stop();
   }, [onDone, progress, wave.id]);
 
-  const scale = progress.interpolate({ inputRange: [0, 1], outputRange: [0.08, 4.2] });
-  const opacity = progress.interpolate({ inputRange: [0, 0.18, 1], outputRange: [0.95, 0.76, 0] });
+  const scale = progress.interpolate({ inputRange: [0, 1], outputRange: [0.06, 5.2] });
+  const opacity = progress.interpolate({ inputRange: [0, 0.16, 1], outputRange: [1, 0.82, 0] });
 
   return (
     <Animated.View
@@ -115,10 +119,11 @@ function AnimatedWave({ wave, onDone }: { wave: Wave; onDone: (id: number) => vo
 
 function RippleTap() {
   const [waves, setWaves] = useState<Wave[]>([]);
-  const id = useRef(0);
+  const nextId = useRef(0);
 
   const addWave = (x: number, y: number) => {
-    setWaves((current) => [...current, { id: ++id.current, x, y }]);
+    const wave = { id: ++nextId.current, x, y };
+    setWaves((current) => [...current, wave]);
     softTick();
   };
 
@@ -126,18 +131,25 @@ function RippleTap() {
     setWaves((current) => current.filter((wave) => wave.id !== waveId));
   };
 
+  const touchPan = useMemo(() => PanResponder.create({
+    onStartShouldSetPanResponder: () => true,
+    onStartShouldSetPanResponderCapture: () => true,
+    onMoveShouldSetPanResponder: () => false,
+    onMoveShouldSetPanResponderCapture: () => false,
+    onPanResponderGrant: (event) => {
+      const touch = event.nativeEvent.touches[0] ?? event.nativeEvent;
+      addWave(touch.locationX, touch.locationY);
+    },
+  }), []);
+
   return (
     <Experience title="MAKE WAVES" subtitle="every touch creates a new ripple">
-      <Pressable
-        style={styles.ripplePad}
-        onPressIn={(event) => {
-          const { locationX, locationY } = event.nativeEvent;
-          addWave(locationX, locationY);
-        }}
-      >
+      <View style={styles.ripplePad} {...touchPan.panHandlers}>
         <View pointerEvents="none" style={styles.waterGlow} />
-        {waves.map((wave) => <AnimatedWave key={wave.id} wave={wave} onDone={removeWave} />)}
-      </Pressable>
+        {waves.map((wave) => (
+          <AnimatedWave key={wave.id} wave={wave} onDone={removeWave} />
+        ))}
+      </View>
     </Experience>
   );
 }
@@ -389,37 +401,40 @@ const styles = StyleSheet.create({
   copy: { alignItems: 'center', gap: 6, zIndex: 2 },
   title: { color: '#f7f7f7', fontSize: 34, fontWeight: '900', letterSpacing: 1.5 },
   subtitle: { color: '#8b8e99', fontSize: 14, letterSpacing: 0.5 },
-  gameArea: { flex: 1, width: '100%', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
-  bubbleGrid: { width: 330, maxWidth: '100%', flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', alignItems: 'center', gap: 10 },
+  gameArea: {
+    flex: 1,
+    width: '100%',
+    alignItems: 'stretch',
+    justifyContent: 'stretch',
+    overflow: 'hidden',
+  },
+  bubbleGrid: { width: 330, maxWidth: '100%', flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', alignItems: 'center', alignSelf: 'center', marginTop: 'auto', marginBottom: 'auto', gap: 10 },
   bubble: { backgroundColor: '#8fd3ff', borderWidth: 3, borderColor: '#c9ecff', shadowColor: '#8fd3ff', shadowOpacity: 0.6, shadowRadius: 14 },
   bubblePopped: { opacity: 0.08, transform: [{ scale: 0.72 }] },
   ripplePad: {
+    flex: 1,
     width: '100%',
-    maxWidth: 520,
-    height: '86%',
-    minHeight: 420,
-    borderRadius: 38,
+    borderRadius: 24,
     backgroundColor: '#101724',
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: '#263349',
+    marginTop: 16,
+    marginBottom: 16,
   },
-  waterGlow: { position: 'absolute', left: '25%', top: '20%', width: '50%', height: '55%', borderRadius: 160, backgroundColor: '#223c5a', opacity: 0.38 },
+  waterGlow: { position: 'absolute', left: '20%', top: '15%', width: '60%', height: '65%', borderRadius: 180, backgroundColor: '#223c5a', opacity: 0.38 },
   waveRing: { position: 'absolute', width: 84, height: 84, borderRadius: 42, borderWidth: 3, borderColor: '#b8dfff', shadowColor: '#93cbff', shadowOpacity: 0.75, shadowRadius: 8 },
   scrubSurface: {
+    flex: 1,
     width: '100%',
-    height: '100%',
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
-    borderRadius: 34,
+    borderRadius: 24,
+    marginTop: 16,
+    marginBottom: 16,
   },
-  scrubCenterCross: {
-    position: 'absolute',
-    width: 2,
-    height: '68%',
-    backgroundColor: 'rgba(255,255,255,0.09)',
-  },
+  scrubCenterCross: { position: 'absolute', width: 2, height: '68%', backgroundColor: 'rgba(255,255,255,0.09)' },
   elasticBlob: { width: 118, height: 118, borderRadius: 59, backgroundColor: '#ffd66b', borderWidth: 7, borderColor: '#fff0ad', shadowColor: '#ffd66b', shadowOpacity: 0.65, shadowRadius: 22 },
   elasticHighlight: { position: 'absolute', width: 30, height: 18, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.55)', top: 18, left: 22, transform: [{ rotate: '-22deg' }] },
   ad: { justifyContent: 'center', gap: 18, backgroundColor: '#11131a' },
