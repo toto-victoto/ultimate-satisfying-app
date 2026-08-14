@@ -1,14 +1,16 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { setSynthMuted } from '../lib/synth-audio';
 
 type HistoryEntry = { id: string; label: string; seconds: number; at: number };
-type StoredState = { history?: HistoryEntry[] };
-const STORAGE_KEY = 'ultimate-satisfying-state-v2';
+type StoredState = { history?: HistoryEntry[]; muted?: boolean };
+const STORAGE_KEY = 'ultimate-satisfying-state-v3';
 
 export default function ProfilePage() {
   const [history, setHistory] = useState<HistoryEntry[]>([]);
+  const [muted, setMuted] = useState(false);
 
   useFocusEffect(useCallback(() => {
     let active = true;
@@ -16,9 +18,19 @@ export default function ProfilePage() {
       if (!active) return;
       const saved = raw ? JSON.parse(raw) as StoredState : {};
       setHistory(saved.history ?? []);
+      setMuted(saved.muted ?? false);
     });
     return () => { active = false; };
   }, []));
+
+  const toggleSound = async () => {
+    const next = !muted;
+    setMuted(next);
+    setSynthMuted(next);
+    const raw = await AsyncStorage.getItem(STORAGE_KEY);
+    const saved = raw ? JSON.parse(raw) as StoredState : {};
+    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify({ ...saved, muted: next }));
+  };
 
   const totalSeconds = history.reduce((sum, entry) => sum + entry.seconds, 0);
 
@@ -35,11 +47,17 @@ export default function ProfilePage() {
         <View style={styles.stat}><Text style={styles.statValue}>{Math.round(totalSeconds)}s</Text><Text style={styles.statLabel}>played</Text></View>
       </View>
 
+      <Text selectable={false} style={styles.sectionTitle}>SETTINGS</Text>
+      <Pressable style={styles.settingRow} onPress={toggleSound}>
+        <Text selectable={false} style={styles.settingName}>Sound</Text>
+        <Text selectable={false} style={styles.settingValue}>{muted ? 'Off' : 'On'}</Text>
+      </Pressable>
+
       <Text selectable={false} style={styles.sectionTitle}>HISTORY</Text>
       {history.length === 0 ? (
         <Text selectable={false} style={styles.empty}>Your recently played games will appear here.</Text>
       ) : (
-        history.slice(-12).reverse().map((entry, index) => (
+        history.slice(-20).reverse().map((entry, index) => (
           <View key={`${entry.id}-${entry.at}-${index}`} style={styles.historyRow}>
             <Text selectable={false} style={styles.historyName}>{entry.label}</Text>
             <Text selectable={false} style={styles.historyMeta}>{Math.round(entry.seconds)}s</Text>
@@ -63,6 +81,9 @@ const styles = StyleSheet.create({
   statValue: { color: '#f4f5f7', fontSize: 24, fontWeight: '900' },
   statLabel: { color: '#7b818e', fontSize: 12, marginTop: 4 },
   sectionTitle: { color: '#777d89', fontSize: 11, fontWeight: '800', letterSpacing: 1.5, marginTop: 34, marginBottom: 10 },
+  settingRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 15, borderBottomWidth: 1, borderBottomColor: '#20242d' },
+  settingName: { color: '#d9dce2', fontSize: 15, fontWeight: '700' },
+  settingValue: { color: '#8f96a3', fontSize: 14, fontWeight: '700' },
   empty: { color: '#777d89', fontSize: 14 },
   historyRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#20242d' },
   historyName: { color: '#d9dce2', fontSize: 15, fontWeight: '700' },
