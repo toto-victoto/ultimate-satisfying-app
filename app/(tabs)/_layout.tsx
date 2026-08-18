@@ -1,8 +1,25 @@
 import { Tabs } from 'expo-router';
-import { Platform, Text } from 'react-native';
+import { Platform, StyleSheet, Text, View } from 'react-native';
 
-function TabIcon({ symbol, focused }: { symbol: string; focused: boolean }) {
-  return <Text style={{ fontSize: focused ? 25 : 23, color: focused ? '#ffffff' : '#a5a9b3', opacity: 1 }}>{symbol}</Text>;
+type IconKind = 'favorites' | 'feed' | 'profile';
+
+function TabIcon({ kind, focused }: { kind: IconKind; focused: boolean }) {
+  const color = focused ? '#ffffff' : '#aeb3bd';
+
+  if (kind === 'feed') {
+    return (
+      <View style={styles.iconFrame}>
+        <View style={[styles.feedDot, focused ? styles.feedDotActive : styles.feedDotInactive]} />
+      </View>
+    );
+  }
+
+  const symbol = kind === 'favorites' ? (focused ? '♥' : '♡') : (focused ? '◉' : '○');
+  return (
+    <View style={styles.iconFrame}>
+      <Text style={[styles.iconText, { color }]}>{symbol}</Text>
+    </View>
+  );
 }
 
 export default function TabsLayout() {
@@ -23,9 +40,17 @@ export default function TabsLayout() {
         sceneStyle: { backgroundColor: '#08090c' },
       }}
     >
-      <Tabs.Screen name="favorites" options={{ title: 'Favorites', tabBarIcon: ({ focused }) => <TabIcon symbol={focused ? '♥' : '♡'} focused={focused} /> }} />
-      <Tabs.Screen name="index" options={{ title: 'Feed', tabBarIcon: ({ focused }) => <TabIcon symbol={focused ? '●' : '○'} focused={focused} /> }} />
-      <Tabs.Screen name="profile" options={{ title: 'Profile', tabBarIcon: ({ focused }) => <TabIcon symbol={focused ? '◉' : '○'} focused={focused} /> }} />
+      <Tabs.Screen name="favorites" options={{ title: 'Favorites', tabBarIcon: ({ focused }) => <TabIcon kind="favorites" focused={focused} /> }} />
+      <Tabs.Screen name="index" options={{ title: 'Feed', tabBarIcon: ({ focused }) => <TabIcon kind="feed" focused={focused} /> }} />
+      <Tabs.Screen name="profile" options={{ title: 'Profile', tabBarIcon: ({ focused }) => <TabIcon kind="profile" focused={focused} /> }} />
     </Tabs>
   );
 }
+
+const styles = StyleSheet.create({
+  iconFrame: { width: 34, height: 34, alignItems: 'center', justifyContent: 'center' },
+  iconText: { fontSize: 27, lineHeight: 32 },
+  feedDot: { width: 22, height: 22, borderRadius: 11 },
+  feedDotActive: { backgroundColor: '#ffffff' },
+  feedDotInactive: { borderWidth: 2, borderColor: '#aeb3bd', backgroundColor: 'transparent' },
+});
