@@ -1,6 +1,7 @@
 import * as Haptics from 'expo-haptics';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Dimensions, FlatList, PanResponder, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import PopGame from '../../components/PopGame';
 import { SatisfyingGame } from '../../components/SatisfyingGame';
 import { buildFeedBatch, FeedItem, GAME_LABELS, lastGameIn } from '../../lib/feed';
 import { setSynthMuted } from '../../lib/synth-audio';
@@ -35,7 +36,7 @@ export default function FeedPage() {
   const currentIsFavorite = current?.kind === 'game' && favorites.includes(current.game);
 
   return <View style={styles.root}>
-    <FlatList ref={listRef} data={items} keyExtractor={(item) => item.id} renderItem={({ item }) => <View style={styles.feedItem}><View style={styles.gameFrame}>{item.kind === 'ad' ? <MockAd /> : <SatisfyingGame game={item.game} />}</View><View style={styles.nextSpacer} /></View>} scrollEnabled={false} initialNumToRender={3} maxToRenderPerBatch={4} windowSize={5} getItemLayout={(_, index) => ({ length: ITEM_HEIGHT, offset: ITEM_HEIGHT * index, index })} />
+    <FlatList ref={listRef} data={items} keyExtractor={(item) => item.id} renderItem={({ item }) => <View style={styles.feedItem}><View style={styles.gameFrame}>{item.kind === 'ad' ? <MockAd /> : item.game === 0 ? <PopGame /> : <SatisfyingGame game={item.game} />}</View><View style={styles.nextSpacer} /></View>} scrollEnabled={false} initialNumToRender={3} maxToRenderPerBatch={4} windowSize={5} getItemLayout={(_, index) => ({ length: ITEM_HEIGHT, offset: ITEM_HEIGHT * index, index })} />
     {current?.kind === 'game' && <Pressable accessibilityRole="button" accessibilityLabel={currentIsFavorite ? 'Remove from favorites' : 'Add to favorites'} style={[styles.favoriteButton, currentIsFavorite && styles.favoriteButtonActive]} onPress={toggleCurrentFavorite}><Text selectable={false} style={[styles.favoriteIcon, currentIsFavorite && styles.favoriteIconActive]}>{currentIsFavorite ? '♥' : '♡'}</Text></Pressable>}
     <Pressable accessibilityRole="button" accessibilityLabel={muted ? 'Turn sound on' : 'Mute sound'} style={styles.soundButton} onPress={toggleSound}><View style={styles.speakerIcon}><View style={styles.speakerBox} /><View style={styles.speakerCone} />{!muted && <><View style={styles.soundWaveSmall} /><View style={styles.soundWaveLarge} /></>}{muted && <View style={styles.muteSlash} />}</View></Pressable>
     <View style={[styles.nextZone, { height: NAV_ZONE_HEIGHT }]} {...nextPan.panHandlers}><View style={styles.separator} /><View style={styles.pill} /><Text style={styles.nextText}>SWIPE UP · NEXT</Text></View>
