@@ -1,7 +1,6 @@
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import PopGame from '../../components/PopGame';
 import { SatisfyingGame } from '../../components/SatisfyingGame';
 import { GAME_LABELS, type GameKind } from '../../lib/feed';
 import { readState, toggleFavorite, updateState } from '../../lib/storage';
@@ -25,7 +24,7 @@ export default function GamePage() {
   };
 
   return <View style={styles.page}>
-    {game === 0 ? <PopGame /> : <SatisfyingGame game={game} />}
+    <SatisfyingGame game={game} />
     <Pressable style={[styles.action, styles.back]} onPress={() => router.back()}><Text style={styles.actionText}>‹</Text></Pressable>
     <Pressable style={[styles.action, styles.favorite]} onPress={onFavorite}><Text style={[styles.favoriteText, favorite && styles.favoriteActive]}>{favorite ? '♥' : '♡'}</Text></Pressable>
     <View pointerEvents="none" style={styles.label}><Text style={styles.labelText}>{params.from === 'favorites' ? 'FAVORITE' : 'HISTORY'} · {GAME_LABELS[game]}</Text></View>
