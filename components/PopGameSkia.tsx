@@ -1,6 +1,6 @@
 import * as Haptics from 'expo-haptics';
 import { useMemo, useRef, useState } from 'react';
-import { Canvas, Circle, Group, RadialGradient, Shadow, vec } from '@shopify/react-native-skia';
+import { Canvas, Circle, Group, LinearGradient, RadialGradient, Rect, Shadow, vec } from '@shopify/react-native-skia';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { playPop } from '../lib/synth-audio';
 
@@ -10,6 +10,7 @@ type Bubble = {
   y: number;
   r: number;
   color: string;
+  mid: string;
   edge: string;
   glow: string;
   highlightX: number;
@@ -17,11 +18,11 @@ type Bubble = {
 };
 
 const PALETTE = [
-  ['#6f58a8', '#bfa9f0', '#9d7fe2'],
-  ['#627fa8', '#b5d4ee', '#8fbde6'],
-  ['#6f9789', '#bad9ce', '#91c2b1'],
-  ['#ad7384', '#efbccb', '#dc95aa'],
-  ['#aa9676', '#ead7b5', '#d4b98f'],
+  ['#7d68b5', '#a897d7', '#d8ccf5', '#aa91e3'],
+  ['#7893b9', '#9fb5d1', '#d4e1f2', '#9ebce1'],
+  ['#80a79a', '#a2c0b7', '#d3e5df', '#a8cdbf'],
+  ['#b88191', '#d3a2ae', '#f0cbd4', '#e3a3b4'],
+  ['#b29f81', '#cdbc9f', '#eadfc8', '#dbc39d'],
 ] as const;
 
 function rng(seed: number) {
@@ -37,9 +38,9 @@ function makeBubbles(width: number, height: number, seed: number): Bubble[] {
   const random = rng(seed * 9176 + 41);
   const cols = 5;
   const rows = 6;
-  const side = Math.min(width * 0.88, 330);
+  const side = Math.min(width * 0.88, 338);
   const cellW = side / cols;
-  const usableH = Math.min(height * 0.84, 470);
+  const usableH = Math.min(height * 0.78, 452);
   const cellH = usableH / rows;
   const left = (width - side) / 2;
   const top = (height - usableH) / 2;
@@ -50,9 +51,9 @@ function makeBubbles(width: number, height: number, seed: number): Bubble[] {
       if (row === rows - 1 && col >= 3) continue;
       const id = row * cols + col;
       const palette = PALETTE[Math.floor(random() * PALETTE.length)];
-      const baseR = Math.min(cellW, cellH) * (0.31 + random() * 0.08);
-      const jitterX = (random() - 0.5) * 8;
-      const jitterY = (random() - 0.5) * 8;
+      const baseR = Math.min(cellW, cellH) * (0.34 + random() * 0.075);
+      const jitterX = (random() - 0.5) * 7;
+      const jitterY = (random() - 0.5) * 7;
       const x = left + cellW * (col + 0.5) + jitterX;
       const y = top + cellH * (row + 0.5) + jitterY;
       bubbles.push({
@@ -61,14 +62,74 @@ function makeBubbles(width: number, height: number, seed: number): Bubble[] {
         y,
         r: baseR,
         color: palette[0],
-        edge: palette[1],
-        glow: palette[2],
-        highlightX: x - baseR * (0.28 + random() * 0.12),
-        highlightY: y - baseR * (0.3 + random() * 0.1),
+        mid: palette[1],
+        edge: palette[2],
+        glow: palette[3],
+        highlightX: x - baseR * (0.28 + random() * 0.08),
+        highlightY: y - baseR * (0.3 + random() * 0.08),
       });
     }
   }
   return bubbles;
+}
+
+function AmbientTray({ width, height }: { width: number; height: number }) {
+  return (
+    <Group>
+      <Rect x={0} y={0} width={width} height={height}>
+        <LinearGradient start={vec(0, 0)} end={vec(width, height)} colors={['#171821', '#111218', '#15151d']} positions={[0, 0.55, 1]} />
+      </Rect>
+      <Circle cx={width * 0.28} cy={height * 0.34} r={Math.max(width, height) * 0.34} opacity={0.32}>
+        <RadialGradient c={vec(width * 0.28, height * 0.34)} r={Math.max(width, height) * 0.34} colors={['rgba(151,124,203,0.22)', 'rgba(151,124,203,0.06)', 'rgba(0,0,0,0)']} />
+      </Circle>
+      <Circle cx={width * 0.76} cy={height * 0.52} r={Math.max(width, height) * 0.31} opacity={0.3}>
+        <RadialGradient c={vec(width * 0.76, height * 0.52)} r={Math.max(width, height) * 0.31} colors={['rgba(103,145,157,0.17)', 'rgba(103,145,157,0.045)', 'rgba(0,0,0,0)']} />
+      </Circle>
+      <Circle cx={width * 0.5} cy={height * 0.78} r={Math.max(width, height) * 0.27} opacity={0.22}>
+        <RadialGradient c={vec(width * 0.5, height * 0.78)} r={Math.max(width, height) * 0.27} colors={['rgba(190,127,147,0.13)', 'rgba(190,127,147,0.035)', 'rgba(0,0,0,0)']} />
+      </Circle>
+    </Group>
+  );
+}
+
+function GelBubble({ bubble }: { bubble: Bubble }) {
+  return (
+    <Group>
+      <Circle cx={bubble.x} cy={bubble.y + bubble.r * 0.11} r={bubble.r * 1.2} opacity={0.32}>
+        <RadialGradient c={vec(bubble.x, bubble.y)} r={bubble.r * 1.25} colors={[`${bubble.glow}55`, `${bubble.glow}18`, 'rgba(0,0,0,0)']} positions={[0, 0.55, 1]} />
+      </Circle>
+
+      <Circle cx={bubble.x} cy={bubble.y} r={bubble.r * 1.055} color="rgba(255,255,255,0.08)">
+        <Shadow dx={0} dy={6} blur={9} color="rgba(0,0,0,0.5)" />
+      </Circle>
+
+      <Circle cx={bubble.x} cy={bubble.y} r={bubble.r}>
+        <RadialGradient
+          c={vec(bubble.x - bubble.r * 0.35, bubble.y - bubble.r * 0.38)}
+          r={bubble.r * 1.48}
+          colors={[bubble.edge, bubble.mid, bubble.color, '#2b2933']}
+          positions={[0, 0.24, 0.7, 1]}
+        />
+        <Shadow dx={-2} dy={-3} blur={5} color="rgba(255,255,255,0.18)" inner />
+        <Shadow dx={2} dy={4} blur={7} color="rgba(20,18,28,0.55)" inner />
+      </Circle>
+
+      <Circle cx={bubble.x} cy={bubble.y} r={bubble.r * 0.79} opacity={0.45}>
+        <RadialGradient
+          c={vec(bubble.x - bubble.r * 0.25, bubble.y - bubble.r * 0.28)}
+          r={bubble.r}
+          colors={['rgba(255,255,255,0.18)', 'rgba(255,255,255,0.035)', 'rgba(24,22,31,0.24)']}
+          positions={[0, 0.5, 1]}
+        />
+      </Circle>
+
+      <Circle cx={bubble.highlightX} cy={bubble.highlightY} r={bubble.r * 0.17} color="rgba(255,255,255,0.62)">
+        <Shadow dx={0} dy={0} blur={3} color="rgba(255,255,255,0.22)" />
+      </Circle>
+      <Circle cx={bubble.highlightX + bubble.r * 0.15} cy={bubble.highlightY + bubble.r * 0.03} r={bubble.r * 0.07} color="rgba(255,255,255,0.2)" />
+      <Circle cx={bubble.x + bubble.r * 0.31} cy={bubble.y + bubble.r * 0.29} r={bubble.r * 0.075} color="rgba(255,255,255,0.16)" />
+    </Group>
+  );
 }
 
 export default function PopGameSkia() {
@@ -90,7 +151,7 @@ export default function PopGameSkia() {
         delete next[bubble.id];
         return next;
       });
-    }, 1250 + (bubble.id % 5) * 90);
+    }, 1300 + (bubble.id % 5) * 100);
   };
 
   return (
@@ -102,42 +163,22 @@ export default function PopGameSkia() {
       <View style={styles.tray} onLayout={(event) => setSize(event.nativeEvent.layout)}>
         {size.width > 0 && (
           <Canvas style={StyleSheet.absoluteFill}>
-            <Group>
-              {bubbles.map((bubble) => {
-                const isPopped = Boolean(popped[bubble.id]);
-                if (isPopped) {
-                  return (
-                    <Group key={bubble.id}>
-                      <Circle cx={bubble.x} cy={bubble.y + 2} r={bubble.r * 0.94} color="#090a0f">
-                        <Shadow dx={0} dy={3} blur={7} color="rgba(0,0,0,0.75)" inner />
-                      </Circle>
-                      <Circle cx={bubble.x} cy={bubble.y} r={bubble.r * 0.72} color="#11131a">
-                        <RadialGradient c={vec(bubble.x - bubble.r * 0.18, bubble.y - bubble.r * 0.2)} r={bubble.r} colors={['#1b1d26', '#090a0f']} />
-                      </Circle>
-                    </Group>
-                  );
-                }
+            <AmbientTray width={size.width} height={size.height} />
+            {bubbles.map((bubble) => {
+              if (popped[bubble.id]) {
                 return (
                   <Group key={bubble.id}>
-                    <Circle cx={bubble.x} cy={bubble.y + bubble.r * 0.12} r={bubble.r * 1.08} color={bubble.glow} opacity={0.16}>
-                      <Shadow dx={0} dy={4} blur={12} color={bubble.glow} />
+                    <Circle cx={bubble.x} cy={bubble.y + 2} r={bubble.r * 0.98} color="#0b0c11">
+                      <Shadow dx={0} dy={3} blur={9} color="rgba(0,0,0,0.78)" inner />
                     </Circle>
-                    <Circle cx={bubble.x} cy={bubble.y} r={bubble.r} color={bubble.color}>
-                      <RadialGradient
-                        c={vec(bubble.x - bubble.r * 0.28, bubble.y - bubble.r * 0.34)}
-                        r={bubble.r * 1.35}
-                        colors={[bubble.edge, bubble.color, '#302b3a']}
-                        positions={[0, 0.58, 1]}
-                      />
-                      <Shadow dx={0} dy={5} blur={8} color="rgba(0,0,0,0.5)" />
-                      <Shadow dx={-2} dy={-2} blur={3} color="rgba(255,255,255,0.2)" inner />
+                    <Circle cx={bubble.x} cy={bubble.y} r={bubble.r * 0.73}>
+                      <RadialGradient c={vec(bubble.x - bubble.r * 0.2, bubble.y - bubble.r * 0.22)} r={bubble.r} colors={['#1c1c24', '#0b0c11']} />
                     </Circle>
-                    <Circle cx={bubble.highlightX} cy={bubble.highlightY} r={bubble.r * 0.19} color="rgba(255,255,255,0.58)" />
-                    <Circle cx={bubble.x + bubble.r * 0.3} cy={bubble.y + bubble.r * 0.29} r={bubble.r * 0.065} color="rgba(255,255,255,0.13)" />
                   </Group>
                 );
-              })}
-            </Group>
+              }
+              return <GelBubble key={bubble.id} bubble={bubble} />;
+            })}
           </Canvas>
         )}
         {bubbles.map((bubble) => (
@@ -147,27 +188,25 @@ export default function PopGameSkia() {
             onPressIn={() => pop(bubble)}
             style={{
               position: 'absolute',
-              left: bubble.x - bubble.r * 1.12,
-              top: bubble.y - bubble.r * 1.12,
-              width: bubble.r * 2.24,
-              height: bubble.r * 2.24,
-              borderRadius: bubble.r * 1.12,
+              left: bubble.x - bubble.r * 1.15,
+              top: bubble.y - bubble.r * 1.15,
+              width: bubble.r * 2.3,
+              height: bubble.r * 2.3,
+              borderRadius: bubble.r * 1.15,
             }}
           />
         ))}
-        <Pressable style={styles.shuffle} onLongPress={() => { setPopped({}); setSeed((value) => value + 1); }}>
-          <View />
-        </Pressable>
+        <Pressable style={styles.shuffle} onLongPress={() => { setPopped({}); setSeed((value) => value + 1); }}><View /></Pressable>
       </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  experience: { flex: 1, backgroundColor: '#090a0e', alignItems: 'center', paddingHorizontal: 22, paddingTop: 48, paddingBottom: 16 },
-  copy: { alignItems: 'center', gap: 7, zIndex: 2 },
-  title: { color: '#f4f1f5', fontSize: 34, fontWeight: '800', letterSpacing: 1.9 },
-  subtitle: { color: '#96919d', fontSize: 14, letterSpacing: 0.2 },
-  tray: { flex: 1, width: '100%', marginTop: 22, marginBottom: 12, borderRadius: 28, borderWidth: 1, borderColor: '#292a32', backgroundColor: '#121319', overflow: 'hidden' },
+  experience: { flex: 1, backgroundColor: '#0b0b10', alignItems: 'center', paddingHorizontal: 22, paddingTop: 46, paddingBottom: 16 },
+  copy: { alignItems: 'center', gap: 8, zIndex: 2 },
+  title: { color: '#f2eff4', fontSize: 33, fontWeight: '800', letterSpacing: 1.65 },
+  subtitle: { color: '#98939e', fontSize: 14, letterSpacing: 0.25 },
+  tray: { flex: 1, width: '100%', marginTop: 24, marginBottom: 14, borderRadius: 29, borderWidth: 1, borderColor: 'rgba(185,177,203,0.17)', backgroundColor: '#15161d', overflow: 'hidden', shadowColor: '#000', shadowOpacity: 0.28, shadowRadius: 20 },
   shuffle: { position: 'absolute', width: 1, height: 1, bottom: 0, right: 0 },
 });
